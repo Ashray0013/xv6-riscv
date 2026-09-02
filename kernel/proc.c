@@ -167,6 +167,9 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  p->shm_va = 0;
+  p->shm_pa = 0;
+  p->shm_valid = 0;
   p->state = UNUSED;
 }
 
@@ -211,6 +214,13 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
+
+  // The shared page is mapped at a fixed user VA below TRAPFRAME.
+  // It is intentionally not part of normal heap growth, so remove it here
+  // before freeing the page table; otherwise freewalk() sees a live leaf PTE
+  // and panics with "freewalk: leaf".
+  uvmunmap(pagetable, SHMBASE, 1, 0);
+
   uvmfree(pagetable, sz);
 }
 
@@ -267,7 +277,23 @@ kfork(void)
     return -1;
   }
 
-  // Copy user memory from parent to child.
+  // Map the shared page into the child using the same physical page.
+  // This page is intentionally not part of the normal uvmcopy()ed memory,
+  // so the child does not get its own duplicate copy of the shared page.
+  if (p->shm_valid) {
+    np->shm_va = p->shm_va;
+    np->shm_pa = p->shm_pa;
+    np->shm_valid = 1;
+
+    if (mappages(np->pagetable, np->shm_va, PGSIZE, np->shm_pa,
+                PTE_R | PTE_W | PTE_U) != 0) {
+      freeproc(np);
+      release(&np->lock);
+      return -1;
+    }
+  }
+
+  // Copy the normal user memory from parent to child.
   if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) {
     freeproc(np);
     release(&np->lock);

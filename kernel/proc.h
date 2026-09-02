@@ -101,4 +101,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  // sheared memory
+  uint64 shm_va; // virtual address of shared memory
+  uint64 shm_pa; // physical address of shared memory
+  int shm_valid; // whether the shared memory is valid
 };

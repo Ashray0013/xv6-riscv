@@ -61,3 +61,4 @@
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
+#define SHMBASE (TRAPFRAME - PGSIZE) // some address below TRAPFRAME but above the current sz range
