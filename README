@@ -1,8 +1,9 @@
 ---
+---
 
-# XV6 Counting Semaphore & Producer-Consumer Implementation
+## XV6 Counting Semaphore & Producer-Consumer Implementation
 
-This repository provides a kernel-level implementation of **counting semaphores** in the xv6-riscv operating system, along with a user-space **Producer-Consumer application** that demonstrates safe, deadlock-free synchronization using a UNIX pipe.
+    This repository provides a kernel-level implementation of **counting semaphores** in the xv6-riscv operating system, along with a user-space **Producer-Consumer application** that demonstrates safe, deadlock-free synchronization using a UNIX pipe.
 
 ---
 
@@ -104,20 +105,6 @@ Inside xv6 shell:
 ```bash
 $ prodcons 5
 ```
-
-### Expected Output
-```
-prodcons: starting with buffer size 5
-producer: waiting for empty slot for 1
-consumer: waiting for item
-consumer: removed 1
-producer: waiting for empty slot for 2
-consumer: waiting for item
-consumer: removed 2
-...
-producer-consumer completed successfully
-```
-
 ---
 
 ## ✅ Key Features & Edge Cases
