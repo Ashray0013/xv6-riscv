@@ -22,6 +22,7 @@ OBJS = \
   $K/fs.o \
   $K/log.o \
   $K/sleeplock.o \
+	$K/semaphore.o \
   $K/file.o \
   $K/pipe.o \
   $K/exec.o \
@@ -150,6 +151,7 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
 	$U/_sync\
+	$U/_prodcons\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

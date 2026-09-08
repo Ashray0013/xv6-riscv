@@ -43,3 +43,6 @@ entry("sbrk");
 entry("pause");
 entry("uptime");
 entry("sync");
+entry("sem_create");
+entry("sem_wait");
+entry("sem_post");

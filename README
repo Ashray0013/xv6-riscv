@@ -1,48 +1,129 @@
-xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
-but is implemented for a modern RISC-V multiprocessor using ANSI C.
+---
 
-ACKNOWLEDGMENTS
+# XV6 Counting Semaphore & Producer-Consumer Implementation
 
-xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
-to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
-2000)).  See also https://pdos.csail.mit.edu/6.1810/, which provides
-pointers to on-line resources for v6.
+This repository provides a kernel-level implementation of **counting semaphores** in the xv6-riscv operating system, along with a user-space **Producer-Consumer application** that demonstrates safe, deadlock-free synchronization using a UNIX pipe.
 
-The following people have made contributions: Russ Cox (context switching,
-locking), Cliff Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, and Austin
-Clements.
+---
 
-We are also grateful for the bug reports and patches contributed by
-Abhinavpatel00, Takahiro Aoyagi, Marcelo Arroyo, Hirbod Behnam, Silas
-Boyd-Wickizer, Anton Burtsev, carlclone, Ian Chen, clivezeng, Dan
-Cross, Cody Cutler, Mike CAT, Tej Chajed, Asami Doi,Wenyang Duan,
-echtwerner, eyalz800, Nelson Elhage, Saar Ettinger, Alice Ferrazzi,
-Nathaniel Filardo, flespark, Peter Froehlich, Yakir Goaron, Shivam
-Handa, Matt Harvey, Bryan Henry, jaichenhengjie, Jim Huang, Matúš
-Jókay, John Jolly, Alexander Kapshuk, Anders Kaseorg, kehao95,
-Wolfgang Keller, Jungwoo Kim, Jonathan Kimmitt, Eddie Kohler, Vadim
-Kolontsov, Austin Liew, Bruce Lowekamp, l0stman, Pavan Maddamsetti,
-Imbar Marinescu, Yandong Mao, Matan Shabtay, Hitoshi Mitake, Carmi
-Merimovich, mes900903, Mark Morrissey, mtasm, Joel Nider, Hayato Ohhashi,
-OptimisticSide, papparapa, phosphagos, Harry Porter, Greg Price, Zheng
-qhuo, Quancheng, RayAndrew, Jude Rich, segfault, Ayan Shafqat, Eldar
-Sehayek, Yongming Shen, Fumiya Shigemitsu, snoire, Taojie, Cam Tenny,
-tyfkda, Warren Toomey, Stephen Tu, Alissa Tung, Rafael Ubal, unicornx,
-Amane Uehara, Pablo Ventura, Luc Videau, Xi Wang, WaheedHafez, Keiichi
-Watanabe, Lucas Wolf, Nicolas Wolovick, wxdao, Grant Wu, x653, Andy
-Zhang, Jindong Zhang, Icenowy Zheng, ZhUyU1997, and Zou Chang Wei.
+## 📌 Overview & Architecture
 
-ERROR REPORTS
+Synchronization in multi-core operating systems requires mechanisms that prevent race conditions while ensuring processes block efficiently without busy waiting.  
 
-Please send errors and suggestions to Frans Kaashoek and Robert Morris
-(kaashoek,rtm@mit.edu).  The main purpose of xv6 is as a teaching
-operating system for MIT's 6.1810, so we are more interested in
-simplifications and clarifications than new features.
+This project implements:
 
-BUILDING AND RUNNING XV6
+- **Kernel-Level Semaphores** (`kernel/syssem.c`, `kernel/sem.c`)  
+  - Creation, waiting (P/Down), and signaling (V/Up)  
+  - Strict FIFO ordering for fairness  
 
-You will need a RISC-V "newlib" tool chain from
-https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for
-riscv64-softmmu.  Once they are installed, and in your shell
-search path, you can run "make qemu".
+- **User-Space Test Program** (`user/prodcons.c`)  
+  - Multi-process Producer-Consumer application  
+  - Uses UNIX pipe as a bounded buffer  
+  - Relies on kernel semaphores for mutual exclusion and resource counting  
+
+---
+
+## ⚙️ Kernel-Level Semaphore Implementation
+
+### Data Structures
+```c
+#define NSEMAPHORE 32
+
+struct semaphore {
+  struct spinlock lock;        // Guards internal state
+  int used;                    // Allocation flag
+  int value;                   // Current resource count
+  int nwaiters;                // Number of waiting processes
+  struct proc *waiters[NPROC]; // FIFO queue of waiting processes
+};
+
+static struct semaphore semaphores[NSEMAPHORE];
+```
+
+### Core Primitives
+- **`semcreate(int value)`**  
+  Allocates a semaphore, initializes `value`, sets `used = 1`, returns descriptor ID.
+
+- **`semwait(int id)`**  
+  - Decrements counter if available.  
+  - Blocks process if no resources or another process is ahead in FIFO.  
+  - Uses `sleep()` to avoid busy waiting.  
+  - Handles cancellation safely via `remove_waiter()`.
+
+- **`sempost(int id)`**  
+  - Increments counter.  
+  - Calls `wakeup()` to unblock the head of the FIFO queue.  
+
+---
+
+## 🧩 Producer-Consumer Design
+
+### Semaphores Used
+| Semaphore | Initial Value | Purpose |
+|-----------|---------------|---------|
+| `empty`   | buffer_size (default: 5) | Tracks empty slots |
+| `full`    | 0             | Tracks filled items |
+| `mutex`   | 1             | Ensures mutual exclusion |
+
+### Synchronization Flow
+**Producer**
+1. `sem_wait(empty)` → check slot space  
+2. `sem_wait(mutex)` → lock buffer  
+3. `write(fd, &item)`  
+4. `sem_post(mutex)` → unlock buffer  
+5. `sem_post(full)` → signal item ready  
+
+**Consumer**
+1. `sem_wait(full)` → check available item  
+2. `sem_wait(mutex)` → lock buffer  
+3. `read(fd, &item)`  
+4. `sem_post(mutex)` → unlock buffer  
+5. `sem_post(empty)` → signal slot free  
+
+### Deadlock Avoidance
+- **Rule:** Resource semaphores (`empty`, `full`) are decremented **before** acquiring `mutex`.  
+- **Failure if reversed:** Holding `mutex` while blocking on `empty` prevents consumer from acquiring `mutex`, causing deadlock.  
+
+---
+
+## 🚀 Building & Running in xv6
+
+### Compilation
+1. Add `_prodcons` to `UPROGS` in `Makefile`.  
+2. Register system calls (`sys_sem_create`, `sys_sem_wait`, `sys_sem_post`) in:
+   - `kernel/syscall.h`
+   - `kernel/syscall.c`
+   - `user/user.h`  
+3. Build and start QEMU:
+   ```bash
+   make qemu
+   ```
+
+### Execution
+Inside xv6 shell:
+```bash
+$ prodcons 5
+```
+
+### Expected Output
+```
+prodcons: starting with buffer size 5
+producer: waiting for empty slot for 1
+consumer: waiting for item
+consumer: removed 1
+producer: waiting for empty slot for 2
+consumer: waiting for item
+consumer: removed 2
+...
+producer-consumer completed successfully
+```
+
+---
+
+## ✅ Key Features & Edge Cases
+
+- **No Busy Waiting** → Uses `sleep()` / `wakeup()` for efficient blocking  
+- **Strict FIFO Fairness** → Prevents starvation  
+- **Process Termination Safety** → Clean removal from wait queue on kill  
+
+---

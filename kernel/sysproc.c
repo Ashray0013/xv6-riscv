@@ -17,6 +17,30 @@ sys_exit(void)
 }
 
 uint64
+sys_sem_create(void)
+{
+  int value;
+  argint(0, &value);
+  return semcreate(value);
+}
+
+uint64
+sys_sem_wait(void)
+{
+  int id;
+  argint(0, &id);
+  return semwait(id);
+}
+
+uint64
+sys_sem_post(void)
+{
+  int id;
+  argint(0, &id);
+  return sempost(id);
+}
+
+uint64
 sys_getpid(void)
 {
   return myproc()->pid;
