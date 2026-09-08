@@ -46,3 +46,43 @@ You will need a RISC-V "newlib" tool chain from
 https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for
 riscv64-softmmu.  Once they are installed, and in your shell
 search path, you can run "make qemu".
+
+READER-WRITER DEMONSTRATION
+
+Build and run the demonstration from the xv6 shell:
+
+	make qemu
+	$ readwrite
+
+The program forks three readers and two writers.  The kernel-backed
+reader-writer service is required because fork() copies user memory in xv6;
+therefore a normal user-space shared_data would not actually be shared by the
+children.  kernel/rwlock.c contains shared_data and read_count, protected by
+an xv6 spinlock.  Readers hold the read side while printing and sleeping, so
+several reader sections can overlap.  Writers hold the write side while
+incrementing, printing, and sleeping, so no reader or other writer can enter.
+
+Readers are admitted while no writer is waiting.  Once a writer is waiting,
+at most three readers from the current batch may enter; subsequent readers
+wait until the writer completes.  This preserves reader preference when there
+is no writer contention while bounding writer delay, so writers cannot starve
+indefinitely.
+
+Representative output (the timestamps and PIDs vary):
+
+	reader-writer test: 3 readers, 2 writers
+	[t=12 pid=4] READ  start shared_data=0
+	[t=12 pid=5] READ  start shared_data=0
+	[t=13 pid=6] READ  start shared_data=0
+	[t=15 pid=4] READ  end   shared_data=0
+	[t=15 pid=5] READ  end   shared_data=0
+	[t=15 pid=6] READ  end   shared_data=0
+	[t=16 pid=7] WRITE start/end shared_data=1 (exclusive)
+	[t=19 pid=8] WRITE start/end shared_data=2 (exclusive)
+	[t=22 pid=4] READ  start shared_data=2
+	[t=22 pid=5] READ  start shared_data=2
+	[t=22 pid=6] READ  start shared_data=2
+	reader-writer test complete: final shared_data=8
+
+The three readers have the same value during their overlapping read section,
+while each writer is bracketed by a period with no active readers.

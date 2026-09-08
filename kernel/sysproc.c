@@ -110,3 +110,43 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_rw_read_enter(void)
+{
+  rw_read_enter();
+  return 0;
+}
+
+uint64
+sys_rw_read_exit(void)
+{
+  rw_read_exit();
+  return 0;
+}
+
+uint64
+sys_rw_write_enter(void)
+{
+  rw_write_enter();
+  return 0;
+}
+
+uint64
+sys_rw_write_exit(void)
+{
+  rw_write_exit();
+  return 0;
+}
+
+uint64
+sys_rw_get_data(void)
+{
+  return rw_get_data();
+}
+
+uint64
+sys_rw_increment_data(void)
+{
+  return rw_increment_data();
+}

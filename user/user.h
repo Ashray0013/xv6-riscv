@@ -25,6 +25,12 @@ char *sys_sbrk(int, int);
 int pause(int);
 int uptime(void);
 int sync(void);
+int rw_read_enter(void);
+int rw_read_exit(void);
+int rw_write_enter(void);
+int rw_write_exit(void);
+int rw_get_data(void);
+int rw_increment_data(void);
 
 // ulib.c
 int stat(const char *, struct stat *);

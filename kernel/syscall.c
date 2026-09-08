@@ -103,6 +103,12 @@ extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_sync(void);
+extern uint64 sys_rw_read_enter(void);
+extern uint64 sys_rw_read_exit(void);
+extern uint64 sys_rw_write_enter(void);
+extern uint64 sys_rw_write_exit(void);
+extern uint64 sys_rw_get_data(void);
+extern uint64 sys_rw_increment_data(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -130,6 +136,12 @@ static uint64 (*syscalls[])(void) = {
   [SYS_mkdir]   = sys_mkdir,
   [SYS_close]   = sys_close,
   [SYS_sync]    = sys_sync,
+  [SYS_rw_read_enter] = sys_rw_read_enter,
+  [SYS_rw_read_exit] = sys_rw_read_exit,
+  [SYS_rw_write_enter] = sys_rw_write_enter,
+  [SYS_rw_write_exit] = sys_rw_write_exit,
+  [SYS_rw_get_data] = sys_rw_get_data,
+  [SYS_rw_increment_data] = sys_rw_increment_data,
   // clang-format on
 };
 
