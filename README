@@ -1,101 +1,88 @@
 ---
----
 
-## XV6 Counting Semaphore & Producer-Consumer Implementation
+# XV6 Counting Semaphore & Producer-Consumer Implementation
 
-    This repository provides a kernel-level implementation of **counting semaphores** in the xv6-riscv operating system, along with a user-space **Producer-Consumer application** that demonstrates safe, deadlock-free synchronization using a UNIX pipe.
-
----
-
-## 📌 Overview & Architecture
-
-Synchronization in multi-core operating systems requires mechanisms that prevent race conditions while ensuring processes block efficiently without busy waiting.  
-
-This project implements:
-
-- **Kernel-Level Semaphores** (`kernel/syssem.c`, `kernel/sem.c`)  
-  - Creation, waiting (P/Down), and signaling (V/Up)  
-  - Strict FIFO ordering for fairness  
-
-- **User-Space Test Program** (`user/prodcons.c`)  
-  - Multi-process Producer-Consumer application  
-  - Uses UNIX pipe as a bounded buffer  
-  - Relies on kernel semaphores for mutual exclusion and resource counting  
+This project extends the **xv6-riscv operating system** with kernel-level **counting semaphores** and demonstrates their use through a user-space **Producer-Consumer application**. The implementation ensures safe, deadlock-free synchronization using a UNIX pipe as a bounded buffer.
 
 ---
 
-## ⚙️ Kernel-Level Semaphore Implementation
+## 📌 Overview
 
-### Data Structures
+Efficient synchronization in multi-core systems requires mechanisms that prevent race conditions without wasting CPU cycles on busy waiting.  
+
+This project provides:
+- **Kernel Semaphores** (`kernel/syssem.c`, `kernel/sem.c`)  
+  - Creation, wait (P/Down), and post (V/Up) operations  
+  - FIFO fairness to eliminate starvation  
+- **Producer-Consumer Demo** (`user/prodcons.c`)  
+  - Multi-process application using a UNIX pipe as buffer  
+  - Three semaphores (`empty`, `full`, `mutex`) for resource tracking and mutual exclusion  
+
+---
+
+## ⚙️ Kernel Semaphore Design
+
+### Data Structure
 ```c
 #define NSEMAPHORE 32
 
 struct semaphore {
-  struct spinlock lock;        // Guards internal state
+  struct spinlock lock;        // Protects state
   int used;                    // Allocation flag
-  int value;                   // Current resource count
+  int value;                   // Resource count
   int nwaiters;                // Number of waiting processes
-  struct proc *waiters[NPROC]; // FIFO queue of waiting processes
+  struct proc *waiters[NPROC]; // FIFO queue of waiters
 };
 
 static struct semaphore semaphores[NSEMAPHORE];
 ```
 
-### Core Primitives
-- **`semcreate(int value)`**  
-  Allocates a semaphore, initializes `value`, sets `used = 1`, returns descriptor ID.
-
-- **`semwait(int id)`**  
-  - Decrements counter if available.  
-  - Blocks process if no resources or another process is ahead in FIFO.  
-  - Uses `sleep()` to avoid busy waiting.  
-  - Handles cancellation safely via `remove_waiter()`.
-
-- **`sempost(int id)`**  
-  - Increments counter.  
-  - Calls `wakeup()` to unblock the head of the FIFO queue.  
+### Primitives
+- **`semcreate(int value)`** → Allocates and initializes a semaphore.  
+- **`semwait(int id)`** → Decrements counter or blocks process in FIFO order using `sleep()`. Handles cancellation safely.  
+- **`sempost(int id)`** → Increments counter and wakes the head of the wait queue.  
 
 ---
 
-## 🧩 Producer-Consumer Design
+## 🧩 Producer-Consumer Synchronization
 
-### Semaphores Used
-| Semaphore | Initial Value | Purpose |
-|-----------|---------------|---------|
-| `empty`   | buffer_size (default: 5) | Tracks empty slots |
-| `full`    | 0             | Tracks filled items |
-| `mutex`   | 1             | Ensures mutual exclusion |
+### Semaphores
+| Name     | Initial Value | Purpose                          |
+|----------|---------------|----------------------------------|
+| `empty`  | buffer_size   | Tracks empty slots               |
+| `full`   | 0             | Tracks filled items              |
+| `mutex`  | 1             | Ensures mutual exclusion         |
 
-### Synchronization Flow
+### Flow
 **Producer**
-1. `sem_wait(empty)` → check slot space  
-2. `sem_wait(mutex)` → lock buffer  
+1. `sem_wait(empty)`  
+2. `sem_wait(mutex)`  
 3. `write(fd, &item)`  
-4. `sem_post(mutex)` → unlock buffer  
-5. `sem_post(full)` → signal item ready  
+4. `sem_post(mutex)`  
+5. `sem_post(full)`  
 
 **Consumer**
-1. `sem_wait(full)` → check available item  
-2. `sem_wait(mutex)` → lock buffer  
+1. `sem_wait(full)`  
+2. `sem_wait(mutex)`  
 3. `read(fd, &item)`  
-4. `sem_post(mutex)` → unlock buffer  
-5. `sem_post(empty)` → signal slot free  
+4. `sem_post(mutex)`  
+5. `sem_post(empty)`  
 
-### Deadlock Avoidance
-- **Rule:** Resource semaphores (`empty`, `full`) are decremented **before** acquiring `mutex`.  
-- **Failure if reversed:** Holding `mutex` while blocking on `empty` prevents consumer from acquiring `mutex`, causing deadlock.  
+### Deadlock Prevention
+- **Rule:** Decrement resource semaphores (`empty`, `full`) **before** acquiring `mutex`.  
+- **Why:** If `mutex` is held while waiting on `empty`, the consumer cannot acquire `mutex` to drain the buffer → deadlock.  
 
 ---
 
-## 🚀 Building & Running in xv6
+## 🚀 Build & Run
 
 ### Compilation
 1. Add `_prodcons` to `UPROGS` in `Makefile`.  
 2. Register system calls (`sys_sem_create`, `sys_sem_wait`, `sys_sem_post`) in:
-   - `kernel/syscall.h`
-   - `kernel/syscall.c`
+   - `kernel/syscall.h`  
+   - `kernel/syscall.c`  
    - `user/user.h`  
-3. Build and start QEMU:
+3. Build and launch QEMU:
    ```bash
    make qemu
    ```
@@ -105,12 +92,13 @@ Inside xv6 shell:
 ```bash
 $ prodcons 5
 ```
+
 ---
 
-## ✅ Key Features & Edge Cases
+## ✅ Features & Edge Cases
 
 - **No Busy Waiting** → Uses `sleep()` / `wakeup()` for efficient blocking  
-- **Strict FIFO Fairness** → Prevents starvation  
-- **Process Termination Safety** → Clean removal from wait queue on kill  
+- **FIFO Fairness** → Guarantees bounded waiting, no starvation  
+- **Safe Termination** → Processes killed while waiting are removed cleanly from the queue  
 
 ---
