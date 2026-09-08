@@ -110,3 +110,33 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// Create a single page of shared memory for this process and its future child.
+uint64
+sys_shm_get(void)
+{
+  struct proc *p = myproc();
+  char *mem;
+  uint64 pa;
+
+  if (p->shm_valid)
+    return p->shm_va;
+
+  mem = kalloc();
+  if (mem == 0)
+    return -1;
+
+  memset(mem, 0, PGSIZE);
+  pa = (uint64)mem;
+
+  if (mappages(p->pagetable, SHMBASE, PGSIZE, pa,
+               PTE_R | PTE_W | PTE_U) != 0) {
+    kfree(mem);
+    return -1;
+  }
+
+  p->shm_va = SHMBASE;
+  p->shm_pa = pa;
+  p->shm_valid = 1;
+  return SHMBASE;
+}
