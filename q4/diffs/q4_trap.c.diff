@@ -1,0 +1,10 @@
+--- xv6-clean/trap.c	2026-08-24 14:26:16.883835200 +0000
++++ asg7/q4-sched/trap.c	2026-10-06 13:54:02.456590900 +0000
+@@ -48,6 +48,7 @@
+ 
+   switch(tf->trapno){
+   case T_IRQ0 + IRQ_TIMER:
++    age_procs();
+     if(cpuid() == 0){
+       acquire(&tickslock);
+       ticks++;

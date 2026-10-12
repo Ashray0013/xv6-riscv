@@ -1,0 +1,8 @@
+--- xv6-clean/syscall.h	2026-08-24 14:26:16.843241600 +0000
++++ asg7/q4-sched/syscall.h	2026-10-06 13:54:17.790854800 +0000
+@@ -20,3 +20,5 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
++#define SYS_set_priority 22
++#define SYS_get_priority 23

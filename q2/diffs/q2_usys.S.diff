@@ -1,0 +1,11 @@
+--- xv6-clean/usys.S	2026-08-24 14:26:16.961714700 +0000
++++ asg7/q2-sems/usys.S	2026-10-06 11:36:29.500941200 +0000
+@@ -29,3 +29,8 @@
+ SYSCALL(sbrk)
+ SYSCALL(sleep)
+ SYSCALL(uptime)
++SYSCALL(clone)
++SYSCALL(join)
++SYSCALL(sem_init)
++SYSCALL(sem_wait)
++SYSCALL(sem_signal)

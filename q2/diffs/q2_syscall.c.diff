@@ -1,0 +1,26 @@
+--- xv6-clean/syscall.c	2026-08-24 14:26:16.837209800 +0000
++++ asg7/q2-sems/syscall.c	2026-10-06 11:36:29.718689500 +0000
+@@ -84,6 +84,11 @@
+ 
+ extern int sys_chdir(void);
+ extern int sys_close(void);
++extern int sys_clone(void);
++extern int sys_join(void);
++extern int sys_sem_init(void);
++extern int sys_sem_wait(void);
++extern int sys_sem_signal(void);
+ extern int sys_dup(void);
+ extern int sys_exec(void);
+ extern int sys_exit(void);
+@@ -126,6 +131,11 @@
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
++[SYS_clone]    sys_clone,
++[SYS_join]     sys_join,
++[SYS_sem_init]   sys_sem_init,
++[SYS_sem_wait]    sys_sem_wait,
++[SYS_sem_signal]  sys_sem_signal,
+ };
+ 
+ void

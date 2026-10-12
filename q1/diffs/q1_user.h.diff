@@ -1,0 +1,11 @@
+--- xv6-clean/user.h	2026-08-24 14:26:16.939492100 +0000
++++ asg7/q1-threads/user.h	2026-10-06 10:49:05.995281500 +0000
+@@ -23,6 +23,8 @@
+ char* sbrk(int);
+ int sleep(int);
+ int uptime(void);
++int clone(void(*)(void*), void*, void*);
++int join(void);
+ 
+ // ulib.c
+ int stat(const char*, struct stat*);

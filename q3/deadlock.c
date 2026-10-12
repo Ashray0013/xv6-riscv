@@ -1,0 +1,228 @@
+#include "types.h"
+#include "stat.h"
+#include "user.h"
+
+#define MAXN 5
+#define MAXM 3
+
+static int nproc, nres;
+static int Allocation[MAXN][MAXM];   // resources currently held
+static int Request[MAXN][MAXM];      // what each process still waits for
+static int Max[MAXN][MAXM];          // max demand (Banker)
+static int Available[MAXM];          // free instances per type
+static int Need[MAXN][MAXM];         // Max - Allocation
+
+static void
+compute_need(void)
+{
+  int i, j;
+  for(i = 0; i < nproc; i++)
+    for(j = 0; j < nres; j++)
+      Need[i][j] = Max[i][j] - Allocation[i][j];
+}
+
+static void
+print_state(char *tag)
+{
+  int i, j;
+  printf(1, "[%s]\nAvailable: ", tag);
+  for(j = 0; j < nres; j++) printf(1, "%d ", Available[j]);
+  printf(1, "\nProc  Allocation  Request  Need\n");
+  for(i = 0; i < nproc; i++){
+    printf(1, "P%d    ", i);
+    for(j = 0; j < nres; j++) printf(1, "%d ", Allocation[i][j]);
+    printf(1, "   ");
+    for(j = 0; j < nres; j++) printf(1, "%d ", Request[i][j]);
+    printf(1, "   ");
+    for(j = 0; j < nres; j++) printf(1, "%d ", Need[i][j]);
+    printf(1, "\n");
+  }
+}
+
+/* detection: repeatedly finish any process whose Request <= work;
+   processes left unfinished are deadlocked */
+static int
+detect_deadlock(int *dead, int *ndead)
+{
+  int work[MAXM], finish[MAXN], i, j, found;
+  for(j = 0; j < nres; j++) work[j] = Available[j];
+  for(i = 0; i < nproc; i++) finish[i] = 0;
+  for(;;){
+    found = 0;
+    for(i = 0; i < nproc; i++){
+      if(finish[i]) continue;
+      for(j = 0; j < nres; j++)
+        if(Request[i][j] > work[j]) break;
+      if(j == nres){
+        printf(1, "  work satisfies P%d -> P%d finishes, releases", i, i);
+        for(j = 0; j < nres; j++) printf(1, " %d", Allocation[i][j]);
+        printf(1, "\n");
+        for(j = 0; j < nres; j++) work[j] += Allocation[i][j];
+        finish[i] = 1; found = 1;
+      }
+    }
+    if(!found) break;
+  }
+  *ndead = 0;
+  for(i = 0; i < nproc; i++)
+    if(!finish[i]) dead[(*ndead)++] = i;
+  return *ndead > 0;
+}
+
+/* Banker safety on the current state */
+static int
+safety_check(void)
+{
+  int work[MAXM], finish[MAXN], i, j, found, count;
+  compute_need();
+  for(j = 0; j < nres; j++) work[j] = Available[j];
+  for(i = 0; i < nproc; i++) finish[i] = 0;
+  count = 0;
+  while(count < nproc){
+    found = 0;
+    for(i = 0; i < nproc; i++){
+      if(finish[i]) continue;
+      for(j = 0; j < nres; j++)
+        if(Need[i][j] > work[j]) break;
+      if(j == nres){
+        for(j = 0; j < nres; j++) work[j] += Allocation[i][j];
+        finish[i] = 1; count++; found = 1;
+      }
+    }
+    if(!found) return 0;
+  }
+  return 1;
+}
+
+/* would granting req to pid keep the state safe? pretend + roll back */
+static int
+is_safe_state(int pid, int *req)
+{
+  int i, ok;
+  compute_need();
+  for(i = 0; i < nres; i++)
+    if(req[i] > Need[pid][i] || req[i] > Available[i])
+      return 0;
+  for(i = 0; i < nres; i++){
+    Available[i] -= req[i];
+    Allocation[pid][i] += req[i];
+  }
+  ok = safety_check();
+  for(i = 0; i < nres; i++){
+    Available[i] += req[i];
+    Allocation[pid][i] -= req[i];
+  }
+  return ok;
+}
+
+static void
+scenario_detect(char *name)
+{
+  int dead[MAXN], ndead, i;
+  printf(1, "\n=== %s ===\n", name);
+  print_state("current state");
+  if(detect_deadlock(dead, &ndead)){
+    printf(1, "Result: DEADLOCK detected, deadlocked processes:");
+    for(i = 0; i < ndead; i++) printf(1, " P%d", dead[i]);
+    printf(1, "\n");
+  } else {
+    printf(1, "Result: NO DEADLOCK (all processes can finish)\n");
+  }
+}
+
+/* real xv6 processes + pipes: A holds Pipe1 write, reads Pipe2;
+   B holds Pipe2 write, reads Pipe1 -> genuine circular wait */
+static void
+real_deadlock_demo(void)
+{
+  int p1[2], p2[2], pidA, pidB, dead[MAXN], ndead, i;
+  char buf[1];
+
+  pipe(p1);
+  pipe(p2);
+  pidA = fork();
+  if(pidA == 0){
+    close(p1[0]); close(p2[1]);
+    printf(1, "A: holds Pipe1 write end, now reading Pipe2...\n");
+    read(p2[0], buf, 1);
+    exit();
+  }
+  pidB = fork();
+  if(pidB == 0){
+    close(p2[0]); close(p1[1]);
+    printf(1, "B: holds Pipe2 write end, now reading Pipe1...\n");
+    read(p1[0], buf, 1);
+    exit();
+  }
+  close(p1[0]); close(p1[1]); close(p2[0]); close(p2[1]);
+  sleep(30);                      /* let both children block */
+
+  nproc = 2; nres = 2;
+  Allocation[0][0] = 1; Allocation[0][1] = 0;   /* A holds Pipe1 write */
+  Allocation[1][0] = 0; Allocation[1][1] = 1;   /* B holds Pipe2 write */
+  Request[0][0] = 0;  Request[0][1] = 1;        /* A waits Pipe2 (B) */
+  Request[1][0] = 1;  Request[1][1] = 0;        /* B waits Pipe1 (A) */
+  Available[0] = 0; Available[1] = 0;
+  printf(1, "\n=== Scenario 4: REAL xv6 processes + pipes ===\n");
+  print_state("model of A/B pipe holdings");
+  if(detect_deadlock(dead, &ndead)){
+    printf(1, "Result: DEADLOCK among real processes:");
+    for(i = 0; i < ndead; i++) printf(1, " %s", dead[i] == 0 ? "A" : "B");
+    printf(1, "  (circular wait A -> B -> A)\n");
+  }
+  kill(pidA); kill(pidB);         /* break the real deadlock */
+  wait(); wait();
+  printf(1, "real deadlocked processes killed and reaped\n");
+}
+
+int
+main(void)
+{
+  int r[2], s;
+
+  /* Scenario 1: safe state, no deadlock */
+  nproc = 3; nres = 2;
+  Available[0] = 1; Available[1] = 1;
+  Allocation[0][0] = 0; Allocation[0][1] = 1;
+  Allocation[1][0] = 1; Allocation[1][1] = 0;
+  Allocation[2][0] = 0; Allocation[2][1] = 0;
+  Request[0][0] = 1; Request[0][1] = 0;
+  Request[1][0] = 0; Request[1][1] = 1;
+  Request[2][0] = 1; Request[2][1] = 1;
+  Max[0][0] = 1; Max[0][1] = 1; Max[1][0] = 1; Max[1][1] = 1;
+  Max[2][0] = 1; Max[2][1] = 1;
+  scenario_detect("Scenario 1: detection on a SAFE state");
+
+  /* Scenario 2: deadlocked state */
+  nproc = 2; nres = 2;
+  Available[0] = 0; Available[1] = 0;
+  Allocation[0][0] = 1; Allocation[0][1] = 0;
+  Allocation[1][0] = 0; Allocation[1][1] = 1;
+  Request[0][0] = 0; Request[0][1] = 1;
+  Request[1][0] = 1; Request[1][1] = 0;
+  Max[0][0] = 1; Max[0][1] = 1; Max[1][0] = 1; Max[1][1] = 1;
+  scenario_detect("Scenario 2: detection on a DEADLOCKED state");
+
+  /* Scenario 3: Banker avoidance - safe now, unsafe after a request */
+  nproc = 2; nres = 2;
+  Available[0] = 1; Available[1] = 1;
+  Allocation[0][0] = 1; Allocation[0][1] = 1;
+  Allocation[1][0] = 1; Allocation[1][1] = 1;
+  Max[0][0] = 3; Max[0][1] = 3;
+  Max[1][0] = 2; Max[1][1] = 2;
+  compute_need();
+  printf(1, "\n=== Scenario 3: Banker's avoidance (is_safe_state) ===\n");
+  print_state("current state");
+  printf(1, "current state safe? %s\n", safety_check() ? "YES" : "NO");
+  r[0] = 1; r[1] = 1;
+  s = is_safe_state(1, r);
+  printf(1, "P1 requests (1,1): is_safe_state=%s -> %s\n",
+         s ? "YES" : "NO", s ? "can be GRANTED" : "DENIED");
+  s = is_safe_state(0, r);
+  printf(1, "P0 requests (1,1): is_safe_state=%s -> %s\n",
+         s ? "YES" : "NO",
+         s ? "can be GRANTED" : "DENIED (would become unsafe)");
+
+  real_deadlock_demo();
+  exit();
+}

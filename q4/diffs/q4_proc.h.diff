@@ -1,0 +1,11 @@
+--- xv6-clean/proc.h	2026-08-24 14:26:16.685268900 +0000
++++ asg7/q4-sched/proc.h	2026-10-06 13:53:50.967515600 +0000
+@@ -41,6 +41,8 @@
+   char *kstack;                // Bottom of kernel stack for this process
+   enum procstate state;        // Process state
+   int pid;                     // Process ID
++  int priority;              // 1 = highest, 20 = lowest
++  int waitticks;               // ticks waited while RUNNABLE
+   struct proc *parent;         // Parent process
+   struct trapframe *tf;        // Trap frame for current syscall
+   struct context *context;     // swtch() here to run process

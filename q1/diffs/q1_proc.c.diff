@@ -1,0 +1,80 @@
+--- xv6-clean/proc.c	2026-08-24 14:26:16.677276700 +0000
++++ asg7/q1-threads/proc.c	2026-10-06 11:19:50.080930100 +0000
+@@ -532,3 +532,77 @@
+     cprintf("\n");
+   }
+ }
++
++// Threads: clone() creates a proc sharing the caller's address space
++int
++clone(void (*fcn)(void *), void *arg, void *stack)
++{
++  int i, pid;
++  struct proc *np;
++  struct proc *cur = myproc();
++  uint *sp;
++
++  if((np = allocproc()) == 0)
++    return -1;
++
++  np->pgdir = cur->pgdir;      // SHARE address space (no copyuvm!)
++  np->sz = cur->sz;
++  np->isthread = 1;
++  np->parent = cur;
++  np->cwd = idup(cur->cwd);
++  safestrcpy(np->name, "thread", sizeof(np->name));
++  for(i = 0; i < NOFILE; i++)
++    if(cur->ofile[i])
++      np->ofile[i] = filedup(cur->ofile[i]);
++
++  *np->tf = *cur->tf;
++  sp = (uint*)((char*)stack + PGSIZE);   // top of user stack page
++  sp -= 1; *sp = (uint)arg;              // argument
++  sp -= 1; *sp = 0xffffffff;             // fake return PC
++  np->tf->esp = (uint)sp;
++  np->tf->eip = (uint)fcn;
++  np->tf->eax = 0;
++
++  acquire(&ptable.lock);
++  np->state = RUNNABLE;
++  pid = np->pid;
++  release(&ptable.lock);
++  return pid;
++}
++
++// join() waits for a thread child (made by clone) to exit
++int
++join(void)
++{
++  struct proc *p;
++  int havekids, pid;
++  struct proc *cur = myproc();
++
++  acquire(&ptable.lock);
++  for(;;){
++    havekids = 0;
++    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
++      if(p->parent != cur || !p->isthread)
++        continue;
++      havekids = 1;
++      if(p->state == ZOMBIE){
++        pid = p->pid;
++        kfree(p->kstack);        // its own kernel stack
++        p->kstack = 0;
++        p->state = UNUSED;       // NO freevm: pgdir is shared!
++        p->pid = 0;
++        p->parent = 0;
++        p->isthread = 0;
++        p->name[0] = 0;
++        p->killed = 0;
++        release(&ptable.lock);
++        return pid;
++      }
++    }
++    if(!havekids || cur->killed){
++      release(&ptable.lock);
++      return -1;
++    }
++    sleep(cur, &ptable.lock);
++  }
++}

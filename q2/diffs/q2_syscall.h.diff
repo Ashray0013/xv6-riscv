@@ -1,0 +1,11 @@
+--- xv6-clean/syscall.h	2026-08-24 14:26:16.843241600 +0000
++++ asg7/q2-sems/syscall.h	2026-10-06 11:36:29.384575000 +0000
+@@ -20,3 +20,8 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
++#define SYS_clone 22
++#define SYS_join  23
++#define SYS_sem_init 24
++#define SYS_sem_wait 25
++#define SYS_sem_signal 26

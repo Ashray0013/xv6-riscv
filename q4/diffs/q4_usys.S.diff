@@ -1,0 +1,8 @@
+--- xv6-clean/usys.S	2026-08-24 14:26:16.961714700 +0000
++++ asg7/q4-sched/usys.S	2026-10-06 13:54:17.825389000 +0000
+@@ -29,3 +29,5 @@
+ SYSCALL(sbrk)
+ SYSCALL(sleep)
+ SYSCALL(uptime)
++SYSCALL(set_priority)
++SYSCALL(get_priority)

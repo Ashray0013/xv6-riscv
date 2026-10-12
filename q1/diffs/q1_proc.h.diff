@@ -1,0 +1,10 @@
+--- xv6-clean/proc.h	2026-08-24 14:26:16.685268900 +0000
++++ asg7/q1-threads/proc.h	2026-10-06 10:41:56.666782300 +0000
+@@ -41,6 +41,7 @@
+   char *kstack;                // Bottom of kernel stack for this process
+   enum procstate state;        // Process state
+   int pid;                     // Process ID
++  int isthread;                // 1 = thread: shares parent pgdir
+   struct proc *parent;         // Parent process
+   struct trapframe *tf;        // Trap frame for current syscall
+   struct context *context;     // swtch() here to run process

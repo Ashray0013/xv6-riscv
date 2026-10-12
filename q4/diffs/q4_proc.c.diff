@@ -1,0 +1,123 @@
+--- xv6-clean/proc.c	2026-08-24 14:26:16.677276700 +0000
++++ asg7/q4-sched/proc.c	2026-10-06 13:54:02.424569100 +0000
+@@ -319,42 +319,48 @@
+ //  - swtch to start running that process
+ //  - eventually that process transfers control
+ //      via swtch back to the scheduler.
++static int rr_idx = 0;   // round-robin tie-break cursor
++
+ void
+ scheduler(void)
+ {
+-  struct proc *p;
++  struct proc *p, *best;
+   struct cpu *c = mycpu();
++  int i, idx;
+   c->proc = 0;
+-  
++
+   for(;;){
+-    // Enable interrupts on this processor.
+     sti();
+-
+-    // Loop over process table looking for process to run.
+     acquire(&ptable.lock);
+-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
++
++    // choose RUNNABLE proc with lowest priority number;
++    // ties broken round-robin by scanning from rr_idx
++    best = 0;
++    for(i = 0; i < NPROC; i++){
++      idx = (rr_idx + i) % NPROC;
++      p = &ptable.proc[idx];
+       if(p->state != RUNNABLE)
+         continue;
+-
+-      // Switch to chosen process.  It is the process's job
+-      // to release ptable.lock and then reacquire it
+-      // before jumping back to us.
++      if(!best || p->priority < best->priority)
++        best = p;
++    }
++    if(best){
++      rr_idx = (int)(best - ptable.proc + 1) % NPROC;
++      p = best;
+       c->proc = p;
+       switchuvm(p);
+       p->state = RUNNING;
++      p->waitticks = 0;
+ 
+-      swtch(&(c->scheduler), p->context);
++      swtch(&c->scheduler, p->context);
+       switchkvm();
+-
+-      // Process is done running for now.
+-      // It should have changed its p->state before coming back.
+       c->proc = 0;
+     }
+     release(&ptable.lock);
+-
+   }
+ }
+ 
++
+ // Enter scheduler.  Must hold only ptable.lock
+ // and have changed proc->state. Saves and restores
+ // intena because intena is a property of this
+@@ -532,3 +538,56 @@
+     cprintf("\n");
+   }
+ }
++
++int
++set_priority(int pid, int priority)
++{
++  struct proc *p;
++  int old = -1;
++  if(priority < 1 || priority > 20)
++    return -1;
++  acquire(&ptable.lock);
++  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
++    if(p->pid == pid){
++      old = p->priority;
++      p->priority = priority;
++      break;
++    }
++  release(&ptable.lock);
++  return old;
++}
++
++int
++get_priority(int pid)
++{
++  struct proc *p;
++  int prio = -1;
++  acquire(&ptable.lock);
++  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
++    if(p->pid == pid){
++      prio = p->priority;
++      break;
++    }
++  release(&ptable.lock);
++  return prio;
++}
++
++// aging: called every timer tick; RUNNABLE procs waiting > 30 ticks
++// get priority boosted by 1 (number decremented) and counter reset
++void
++age_procs(void)
++{
++  struct proc *p;
++  acquire(&ptable.lock);
++  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
++    if(p->state == RUNNABLE){
++      p->waitticks++;
++      if(p->waitticks > 30){
++        if(p->priority > 1)
++          p->priority--;
++        p->waitticks = 0;
++      }
++    }
++  }
++  release(&ptable.lock);
++}

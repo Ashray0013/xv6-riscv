@@ -1,0 +1,20 @@
+--- xv6-clean/syscall.c	2026-08-24 14:26:16.837209800 +0000
++++ asg7/q4-sched/syscall.c	2026-10-06 13:54:18.013763100 +0000
+@@ -84,6 +84,8 @@
+ 
+ extern int sys_chdir(void);
+ extern int sys_close(void);
++extern int sys_set_priority(void);
++extern int sys_get_priority(void);
+ extern int sys_dup(void);
+ extern int sys_exec(void);
+ extern int sys_exit(void);
+@@ -126,6 +128,8 @@
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
++[SYS_set_priority] sys_set_priority,
++[SYS_get_priority] sys_get_priority,
+ };
+ 
+ void

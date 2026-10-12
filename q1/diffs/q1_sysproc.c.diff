@@ -1,0 +1,21 @@
+--- xv6-clean/sysproc.c	2026-08-24 14:26:16.859049500 +0000
++++ asg7/q1-threads/sysproc.c	2026-10-06 11:00:43.046532800 +0000
+@@ -89,3 +89,18 @@
+   release(&tickslock);
+   return xticks;
+ }
++
++int
++sys_clone(void)
++{
++  int fcn, arg, stack;
++  if(argint(0, &fcn) < 0 || argint(1, &arg) < 0 || argint(2, &stack) < 0)
++    return -1;
++  return clone((void (*)(void *))fcn, (void *)arg, (void *)stack);
++}
++
++int
++sys_join(void)
++{
++  return join();
++}

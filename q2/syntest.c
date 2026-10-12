@@ -1,0 +1,95 @@
+#include "types.h"
+#include "stat.h"
+#include "user.h"
+
+#define NTHREADS 3
+#define INCS     100000
+#define STACKSZ  4096
+
+#define SEM_COUNTER 0
+#define SEM_EMPTY   1
+#define SEM_FULL    2
+#define SEM_BUF     3
+
+#define BUFSZ  5
+#define NITEMS 20
+
+static int counter = 0;
+static int buffer[BUFSZ];
+static int inpos, outpos;
+
+void
+worker(void *arg)
+{
+  int i, id = (int)arg;
+  for(i = 0; i < INCS; i++){
+    sem_wait(SEM_COUNTER);       // entry section
+    counter++;                   // critical section
+    sem_signal(SEM_COUNTER);     // exit section
+  }
+  printf(1, "thread %d finished its %d increments\n", id, INCS);
+  exit();
+}
+
+void
+producer(void *arg)
+{
+  int item;
+  for(item = 1; item <= NITEMS; item++){
+    sem_wait(SEM_EMPTY);
+    sem_wait(SEM_BUF);
+    buffer[inpos] = item;
+    printf(1, "produced item %d (slot %d)\n", item, inpos);
+    inpos = (inpos + 1) % BUFSZ;
+    sem_signal(SEM_BUF);
+    sem_signal(SEM_FULL);
+  }
+  printf(1, "producer done\n");
+  exit();
+}
+
+void
+consumer(void *arg)
+{
+  int item, n;
+  for(n = 0; n < NITEMS; n++){
+    sem_wait(SEM_FULL);
+    sem_wait(SEM_BUF);
+    item = buffer[outpos];
+    printf(1, "consumed item %d (slot %d)\n", item, outpos);
+    outpos = (outpos + 1) % BUFSZ;
+    sem_signal(SEM_BUF);
+    sem_signal(SEM_EMPTY);
+  }
+  printf(1, "consumer done\n");
+  exit();
+}
+
+int
+main(void)
+{
+  int i;
+  void *st;
+
+  sem_init(SEM_COUNTER, 1);
+  for(i = 0; i < NTHREADS; i++){
+    st = malloc(STACKSZ);
+    if(clone(worker, (void*)i, st) < 0){ printf(1, "clone failed\n"); exit(); }
+  }
+  for(i = 0; i < NTHREADS; i++)
+    join();
+  printf(1, "counter with semaphores = %d (expected exactly %d)\n",
+         counter, NTHREADS*INCS);
+
+  sem_init(SEM_EMPTY, BUFSZ);
+  sem_init(SEM_FULL, 0);
+  sem_init(SEM_BUF, 1);
+  st = malloc(STACKSZ);
+  clone(producer, 0, st);
+  st = malloc(STACKSZ);
+  clone(consumer, 0, st);
+  join();
+  join();
+  printf(1, "producer-consumer completed with no overflow/underflow\n");
+  exit();
+}

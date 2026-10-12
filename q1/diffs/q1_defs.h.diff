@@ -1,0 +1,11 @@
+--- xv6-clean/defs.h	2026-08-24 14:26:16.379799800 +0000
++++ asg7/q1-threads/defs.h	2026-10-06 10:49:06.058080300 +0000
+@@ -108,6 +108,8 @@
+ int             fork(void);
+ int             growproc(int);
+ int             kill(int);
++int             clone(void(*)(void*), void*, void*);
++int             join(void);
+ struct cpu*     mycpu(void);
+ struct proc*    myproc();
+ void            pinit(void);

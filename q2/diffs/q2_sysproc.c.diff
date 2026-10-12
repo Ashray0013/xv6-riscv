@@ -1,0 +1,48 @@
+--- xv6-clean/sysproc.c	2026-08-24 14:26:16.859049500 +0000
++++ asg7/q2-sems/sysproc.c	2026-10-06 11:37:02.833252400 +0000
+@@ -89,3 +89,45 @@
+   release(&tickslock);
+   return xticks;
+ }
++
++int
++sys_clone(void)
++{
++  int fcn, arg, stack;
++  if(argint(0, &fcn) < 0 || argint(1, &arg) < 0 || argint(2, &stack) < 0)
++    return -1;
++  return clone((void (*)(void *))fcn, (void *)arg, (void *)stack);
++}
++
++int
++sys_join(void)
++{
++  return join();
++}
++
++int
++sys_sem_init(void)
++{
++  int id, value;
++  if(argint(0, &id) < 0 || argint(1, &value) < 0)
++    return -1;
++  return sem_init(id, value);
++}
++
++int
++sys_sem_wait(void)
++{
++  int id;
++  if(argint(0, &id) < 0)
++    return -1;
++  return sem_wait(id);
++}
++
++int
++sys_sem_signal(void)
++{
++  int id;
++  if(argint(0, &id) < 0)
++    return -1;
++  return sem_signal(id);
++}

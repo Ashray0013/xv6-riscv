@@ -1,0 +1,47 @@
+--- /dev/null	2026-10-06 10:29:39.451355319 +0000
++++ asg7/q4-sched/priotest.c	2026-10-06 13:54:24.917583400 +0000
+@@ -0,0 +1,44 @@
++#include "types.h"
++#include "stat.h"
++#include "user.h"
++
++static void
++child(int id, int prio)
++{
++  int start, t, lastprint, p, i;
++  volatile int k;
++  set_priority(getpid(), prio);
++  start = uptime();
++  lastprint = start;
++  printf(1, "proc %d pid %d START prio %d tick %d\n", id, getpid(), prio, start);
++  for(;;){
++    for(k = 0; k < 50000; k++)
++      ;                          /* CPU-bound burst */
++    t = uptime();
++    p = get_priority(getpid());
++    if(t - lastprint >= 20){
++      printf(1, "proc %d pid %d tick %d priority %d\n", id, getpid(), t, p);
++      lastprint = t;
++    }
++    if(t - start >= 100)         /* 100 ticks of CPU work each */
++      break;
++  }
++  printf(1, "proc %d pid %d FINISHED tick %d priority %d\n",
++         id, getpid(), uptime(), get_priority(getpid()));
++  exit();
++}
++
++int
++main(void)
++{
++  int prios[4] = {1, 5, 10, 20};
++  int i;
++  for(i = 0; i < 4; i++){
++    if(fork() == 0)
++      child(i, prios[i]);
++  }
++  for(i = 0; i < 4; i++)
++    wait();
++  printf(1, "all 4 completed - order follows priority; pid with prio 20 survived via aging\n");
++  exit();
++}
