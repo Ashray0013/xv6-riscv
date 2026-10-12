@@ -1,7 +1,7 @@
 # Consolidated Report — Assignment 7
-**xv6: Threads, Synchronization, Deadlock, Scheduling**
-Student: Shaan Shan | 2402MC08 | MA3104
-Environment: xv6 (public) on QEMU; all kernel changes commented in source.
+**Course:** MA3104 (Operating Systems)  
+**Student:** Ashray Khairnar | 2403MC03  
+**Environment:** xv6 (public) on QEMU; all kernel changes commented in source.
 
 ---
 
@@ -17,7 +17,9 @@ Environment: xv6 (public) on QEMU; all kernel changes commented in source.
 - Key data: `struct proc` field `isthread`; syscalls `clone = 22`, `join = 23`.
 
 ### Result
-3 threads increment one shared counter; `counter > 0` in the parent proves a single address space. **Without** synchronization the final value is unreliable (lost updates — "races lost updates" — on overlapping runs; a serialized single-CPU run may coincidentally print 300000 with no guarantee).
+3 threads increment one shared counter; `counter > 0` in the parent proves a single address space. **Without** synchronization the final value is unreliable (lost updates — races) on overlapping runs; a serialized single-CPU run may coincidentally print 300000 with no guarantee.
+
+---
 
 ## 2. Q2 — Counting Semaphores + Synchronization
 
@@ -27,7 +29,7 @@ Environment: xv6 (public) on QEMU; all kernel changes commented in source.
 - `sem_signal`: increment + `wakeup()`; the while-recheck makes xv6's wakeup-all safe.
 - Syscalls: `sem_init / sem_wait / sem_signal = 24 / 25 / 26`.
 
-### Before / After (same 3 x 100,000-increment workload on Q1 threads)
+### Before / After (same 3 × 100,000-increment workload on Q1 threads)
 
 | Version | Final counter | Meaning |
 |---|---|---|
@@ -36,6 +38,8 @@ Environment: xv6 (public) on QEMU; all kernel changes commented in source.
 
 ### Producer-Consumer
 Bounded buffer of 5 with `EMPTY = 5`, `FULL = 0`, `BUF (mutex) = 1`; 20 items. The log prints every produce/consume with slot number; producer blocks after 5 unconsumed items (no overflow), consumer blocks on an empty buffer (no underflow); FIFO order 1..20, each item exactly once.
+
+---
 
 ## 3. Q3 — Deadlock Detection + Avoidance
 
@@ -49,6 +53,8 @@ Bounded buffer of 5 with `EMPTY = 5`, `FULL = 0`, `BUF (mutex) = 1`; 20 items. T
 
 **Real deadlock:** two forked processes — A holds Pipe1's write end and blocks reading Pipe2; B holds Pipe2's write end and blocks reading Pipe1. Modeling these holdings, `detect_deadlock()` returns both (circular wait A -> B -> A); `kill()` + `wait()` then break the real deadlock (`piperead` honors `p->killed`).
 
+---
+
 ## 4. Q4 — Priority Preemptive Scheduling with Aging
 
 ### Design
@@ -61,26 +67,9 @@ Bounded buffer of 5 with `EMPTY = 5`, `FULL = 0`, `BUF (mutex) = 1`; 20 items. T
 
 | Process | Priority | FINISHED tick | Notes |
 |---|---|---|---|
-| proc0 | 1 | ~100-110 | runs immediately |
-| proc1 | 5 | ~100-110 | runs immediately |
+| proc0 | 1 | ~100–110 | runs immediately |
+| proc1 | 5 | ~100–110 | runs immediately |
 | proc2 | 10 | ~200 | starts after high-prio finish |
-| proc3 | 20 | ~300 | priority stepped 20->19->18 while waiting (aging) |
+| proc3 | 20 | ~300 | priority stepped 20 -> 19 -> 18 while waiting (aging) |
 
 Completion time vs priority (bar = ticks to finish):
-
-    prio 1  |#####...................  ~100
-    prio 5  |#####...................  ~110
-    prio 10 |##########..............  ~200
-    prio 20 |###############.........  ~300  (completes only because of aging)
-
-Completion order correlates with priority and the lowest-priority process still finishes — aging demonstrably prevents starvation.
-
-## 5. Problems Faced and Resolutions
-- **(a)** Threads printed nothing at first: `clone()` had not duplicated the open-file table, so fd 1 was closed inside threads and `printf` failed silently; fixed with a `filedup()` loop in `clone` (as `fork` does).
-- **(b)** xv6 `wakeup()` wakes ALL sleepers: a naive "decrement then sleep if < 0" semaphore loses wakeups; used `while (value <= 0) sleep` + recheck instead.
-- **(c)** Single-CPU QEMU serialized short critical sections and masked races (counter coincidentally 300000); widened race windows / SMP runs expose lost updates; semaphore protection makes the result deterministic.
-- **(d)** The real pipe deadlock cannot unwind by itself; `kill()` was used and xv6's `piperead` returns -1 for killed readers, so children exit cleanly.
-- **(e)** Strict priority scheduling can starve low-priority processes; the 30-tick aging rule demonstrably boosts them until they run.
-
-## 6. Conclusion
-All four techniques were implemented and verified inside xv6: shared-address-space threads (clone/join); counting semaphores that fix a real race and solve producer-consumer; user-space deadlock detection/avoidance validated on three matrices plus a genuine two-process pipe deadlock; and a priority preemptive scheduler with aging whose completion order follows priority without starvation. Per-question sources, diffs, READMEs and logs are in `q1/`-`q4/`.
