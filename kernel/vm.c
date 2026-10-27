@@ -489,3 +489,37 @@ ismapped(pagetable_t pagetable, uint64 va)
   }
   return 0;
 }
+
+// Recursively walk one level of a page table, in the same shape as
+// freewalk(). va is the virtual address prefix built from the levels
+// above. Only valid, user-accessible leaf entries are printed.
+static void
+vmprint_walk(pagetable_t pagetable, int level, uint64 va)
+{
+  for (int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if ((pte & PTE_V) == 0)
+      continue;
+
+    uint64 cva = va | ((uint64)i << PXSHIFT(level));
+
+    if (level > 0 && (pte & (PTE_R | PTE_W | PTE_X)) == 0) {
+      // this PTE points to a lower-level page table.
+      vmprint_walk((pagetable_t)PTE2PA(pte), level - 1, cva);
+    } else if (pte & PTE_U) {
+      // leaf PTE for a user page.
+      printk("va 0x%lx -> pa 0x%lx  flags: P=%d W=%d U=%d\n", cva,
+             PTE2PA(pte), (pte & PTE_V) != 0, (pte & PTE_W) != 0,
+             (pte & PTE_U) != 0);
+    }
+  }
+}
+
+// Print every valid user page of pagetable: virtual address, physical
+// address of the frame, and the P(V)/W/U flags. Returns 0.
+int
+vmprint(pagetable_t pagetable)
+{
+  vmprint_walk(pagetable, 2, 0);
+  return 0;
+}

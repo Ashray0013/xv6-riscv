@@ -110,3 +110,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// return page table
+uint64
+sys_vmprint(void)
+{
+  return vmprint(myproc()->pagetable);
+}
